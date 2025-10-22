@@ -313,7 +313,21 @@ def gen_video_out(out_dir, seq_name):
 
     in_dir = osp.abspath(osp.join(out_dir, "rendered"))
     out_path = osp.abspath(osp.join(out_dir, seq_name+'.mp4'))
-    ffmpeg_cmd = f'ffmpeg -y -f image2 -framerate 25 -pattern_type glob -i "{in_dir}/*.jpg"  -pix_fmt yuv420p -c:v libx264 -x264opts keyint=25:min-keyint=25:scenecut=-1 -vf "scale=trunc(iw/2)*2:trunc(ih/2)*2" {out_path}'
+    
+    # Windows doesn't support glob patterns in ffmpeg, use concat demuxer instead
+    import platform
+    if platform.system() == 'Windows':
+        # Create a file list for concat
+        file_list_path = osp.join(out_dir, 'file_list.txt')
+        image_files = sorted([f for f in os.listdir(in_dir) if f.endswith('.jpg')])
+        with open(file_list_path, 'w') as f:
+            for img_file in image_files:
+                # Use forward slashes for ffmpeg on Windows
+                img_path = osp.join(in_dir, img_file).replace('\\', '/')
+                f.write(f"file '{img_path}'\n")
+        ffmpeg_cmd = f'ffmpeg -y -r 25 -f concat -safe 0 -i "{file_list_path}" -pix_fmt yuv420p -c:v libx264 -x264opts keyint=25:min-keyint=25:scenecut=-1 -vf "scale=trunc(iw/2)*2:trunc(ih/2)*2" "{out_path}"'
+    else:
+        ffmpeg_cmd = f'ffmpeg -y -f image2 -framerate 25 -pattern_type glob -i "{in_dir}/*.jpg"  -pix_fmt yuv420p -c:v libx264 -x264opts keyint=25:min-keyint=25:scenecut=-1 -vf "scale=trunc(iw/2)*2:trunc(ih/2)*2" {out_path}'
     os.system(ffmpeg_cmd)
     # print(ffmpeg_cmd.split())
     # sp.run(ffmpeg_cmd.split())
